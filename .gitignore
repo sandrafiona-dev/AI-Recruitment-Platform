@@ -1,0 +1,12 @@
+# JavaScript dependencies and build output
+node_modules/
+dist/
+build/
+
+# Python environments and cache files
+.venv/
+__pycache__/
+*.pyc
+
+# Local environment configuration
+.env
