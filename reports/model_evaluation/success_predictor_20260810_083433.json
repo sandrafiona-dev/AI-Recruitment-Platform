@@ -1,0 +1,33 @@
+{
+    "model_name": "success_predictor",
+    "timestamp": "20260810_083433",
+    "dataset": {
+        "name": "resume_dataset.csv",
+        "source": "Synthetic (scripts/generate_sample_data.py)",
+        "is_synthetic": true
+    },
+    "train_test_split": "80/20, stratified, random_state=42",
+    "preprocessing": "LabelEncoder for role, skill count from text",
+    "feature_set": [
+        "role_encoded",
+        "experience_years",
+        "skill_count",
+        "interview_score"
+    ],
+    "target_variable": "success_flag",
+    "metrics": {
+        "accuracy": 0.9,
+        "precision": 0.7333,
+        "recall": 1.0,
+        "F1": 0.8462,
+        "ROC_AUC": 0.9404
+    },
+    "limitations": [
+        "success_flag is artificially constructed (interview_score > 70 + randomness)",
+        "Does not represent real hiring outcomes like job tenure or performance",
+        "Uses class_weight='balanced' to handle synthetic class imbalance",
+        "Real labeled hiring outcome data required for production use",
+        "Potential for bias if real data includes proxy features for protected attributes"
+    ],
+    "data_label": "SYNTHETIC-DEV"
+}

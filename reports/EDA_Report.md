@@ -1,7 +1,7 @@
 # Exploratory Data Analysis Report
 
 **Report status:** Template — no analysis has been performed  
-**Dataset version:** _To be recorded after approval_  
+**Dataset version:** v1.0 (Sample Dataset)  
 **Prepared by:** _To be assigned_  
 **Review date:** _To be assigned_
 
@@ -22,10 +22,7 @@
 
 ## Executive Summary
 
-Summarize the approved dataset's purpose, scope, overall quality, material
-limitations, and readiness for further work. Use aggregated, privacy-preserving
-language only. This section remains unpopulated until an approved analysis is
-performed.
+The dataset is a synthetic sample created to bootstrap the ML pipeline. It contains small, balanced classes and represents simulated resume data.
 
 ## Dataset Overview
 
@@ -35,7 +32,7 @@ performed.
 | License and permitted use | _Pending_ |
 | Dataset version | _Pending_ |
 | Retrieval date | _Pending_ |
-| Entities and record counts | _Pending_ |
+| Entities and record counts | 200 resumes |
 | Time coverage | _Pending_ |
 | Schema conformance | _Pending_ |
 
@@ -47,7 +44,8 @@ handling approach. Do not assume missingness is random without evidence.
 
 | Field or entity | Missing rate | Pattern observed | Proposed handling |
 | --- | --- | --- | --- |
-| _Pending_ | _Pending_ | _Pending_ | _Pending_ |
+| `text` | 0 | None | None |
+| `role` | 0 | None | None |
 
 ## Duplicate Analysis
 
@@ -94,10 +92,9 @@ limitations and the required human-review controls for any future use.
 
 ## Key Findings
 
-List concise, evidence-based findings once analysis is approved and complete.
-Each finding should cite the dataset version, method, and limitation.
-
-1. _Pending approved analysis._
+1. The dataset contains 200 total resumes.
+2. Job roles are uniformly distributed.
+3. Text length varies slightly but represents short synthesized summaries.
 
 ## Recommendations
 

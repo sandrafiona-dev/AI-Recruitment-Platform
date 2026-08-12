@@ -1,0 +1,29 @@
+{
+    "model_name": "interview_predictor",
+    "timestamp": "20260810_083410",
+    "dataset": {
+        "name": "resume_dataset.csv",
+        "source": "Synthetic (scripts/generate_sample_data.py)",
+        "is_synthetic": true
+    },
+    "train_test_split": "80/20, random_state=42",
+    "preprocessing": "LabelEncoder for role, skill count from text",
+    "feature_set": [
+        "role_encoded",
+        "experience_years",
+        "skill_count"
+    ],
+    "target_variable": "interview_score",
+    "metrics": {
+        "MAE": 8.52,
+        "RMSE": 10.31,
+        "R2": 0.697
+    },
+    "limitations": [
+        "interview_score is synthetically generated, not from real assessments",
+        "Correlation with experience is artificially injected",
+        "Does not capture communication, problem-solving, or cultural fit",
+        "Real interview assessment data required for production"
+    ],
+    "data_label": "SYNTHETIC-DEV"
+}

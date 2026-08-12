@@ -1,0 +1,29 @@
+{
+    "model_name": "salary_predictor",
+    "timestamp": "20260810_202611",
+    "dataset": {
+        "name": "resume_dataset.csv",
+        "source": "Synthetic (scripts/generate_sample_data.py)",
+        "is_synthetic": true
+    },
+    "train_test_split": "80/20, random_state=42",
+    "preprocessing": "LabelEncoder for role, skill count from text",
+    "feature_set": [
+        "role_encoded",
+        "experience_years",
+        "skill_count"
+    ],
+    "target_variable": "salary",
+    "metrics": {
+        "MAE": 7197.39,
+        "RMSE": 9662.6,
+        "R2": 0.8263
+    },
+    "limitations": [
+        "Trained on synthetic data \u2014 salary values are artificially generated",
+        "Does not use location, company size, or industry",
+        "Skill count is a rough proxy for skill depth",
+        "Not suitable for production salary estimates"
+    ],
+    "data_label": "SYNTHETIC-DEV"
+}

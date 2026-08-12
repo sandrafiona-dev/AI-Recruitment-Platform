@@ -10,3 +10,13 @@ __pycache__/
 
 # Local environment configuration
 .env
+
+# Large / external datasets
+datasets/external/*.zip
+datasets/external/archive/
+datasets/external/archive (1)/
+datasets/raw/*.csv
+datasets/processed/real_resumes.csv
+
+# Large trained model
+ml/models/real_resume_classifier/model.joblib
