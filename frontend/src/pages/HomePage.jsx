@@ -4,11 +4,13 @@ import Navbar from "../components/Navbar";
 
 function HomePage() {
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#fce8dc]">
       <Navbar />
+
       <main>
         <Hero />
       </main>
+
       <Footer />
     </div>
   );

@@ -1,61 +1,66 @@
+import { Link } from "react-router-dom";
+import RecruitaWordmark from "./RecruitaWordmark";
+
 function Hero() {
   return (
-    <section id="home" className="overflow-hidden px-6 pb-20 pt-20 sm:px-10 sm:pt-28 lg:px-16">
-      <div className="mx-auto grid max-w-7xl items-center gap-14 lg:grid-cols-[1.2fr_0.8fr]">
-        <div>
-          <p className="inline-flex rounded-full bg-indigo-100 px-4 py-1.5 text-sm font-semibold text-indigo-700">
-            Welcome to the platform
+    <section className="relative min-h-[calc(100vh-81px)] overflow-hidden bg-[#fce8dc]">
+      {/* Soft decorative shapes */}
+      <div className="pointer-events-none absolute -left-24 top-24 h-64 w-64 rounded-full bg-[#f4c7b2]/50 blur-3xl" />
+
+      <div className="pointer-events-none absolute -right-24 top-16 h-72 w-72 rounded-full bg-[#efb79f]/40 blur-3xl" />
+
+      <div className="pointer-events-none absolute left-1/2 top-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#fff4ee]/40 blur-3xl" />
+
+      <div className="relative mx-auto flex min-h-[calc(100vh-81px)] max-w-5xl items-center justify-center px-6 py-20 text-center sm:px-10">
+        <div className="max-w-3xl">
+
+          {/* Small introduction */}
+          <p className="mb-7 text-sm font-medium uppercase tracking-[0.22em] text-[#b96a50]">
+            A better way to understand candidates
           </p>
-          <h1 className="mt-6 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
-            AI Recruitment Platform
-          </h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600 sm:text-xl">
-            A modern foundation for building reliable, thoughtful recruitment
-            experiences.
+
+          {/* Main brand */}
+          <div className="text-6xl sm:text-7xl md:text-8xl">
+            <RecruitaWordmark className="text-inherit" />
+          </div>
+
+          {/* Tagline */}
+          <h2 className="mt-6 text-2xl font-medium leading-tight text-[#493d36] sm:text-3xl">
+            Smarter recruitment.
+            <br />
+            <span className="text-[#c86445]">
+              More human decisions.
+            </span>
+          </h2>
+
+          {/* Description */}
+          <p className="mx-auto mt-7 max-w-2xl text-base leading-7 text-[#766961] sm:text-lg">
+            Understand candidates through their skills, experience, and
+            potential — not just keywords.
           </p>
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              className="rounded-xl bg-indigo-600 px-6 py-3 text-center font-semibold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700"
+
+          {/* Actions */}
+          <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link
+              to="/match"
+              className="rounded-full bg-[#d97757] px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-[#d97757]/20 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#c96749] hover:shadow-xl"
             >
               Get Started
-            </button>
-            <button
-              type="button"
-              className="rounded-xl border border-slate-300 bg-white px-6 py-3 text-center font-semibold text-slate-700 shadow-sm transition hover:border-indigo-300 hover:text-indigo-700"
-            >
-              Learn More
-            </button>
-          </div>
-        </div>
+            </Link>
 
-        <div className="rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-slate-100 p-6 shadow-xl shadow-slate-200/60 sm:p-8">
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-700">Platform foundation</span>
-              <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                Ready
-              </span>
-            </div>
-            <div className="mt-6 space-y-4">
-              {["Responsive interface", "API-ready services", "Modular architecture"].map(
-                (item, index) => (
-                  <div key={item} className="rounded-xl bg-slate-50 p-4">
-                    <div className="flex items-center justify-between text-sm font-medium text-slate-700">
-                      <span>{item}</span>
-                      <span className="text-indigo-600">{92 - index * 6}%</span>
-                    </div>
-                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
-                      <div
-                        className="h-full rounded-full bg-indigo-600"
-                        style={{ width: `${92 - index * 6}%` }}
-                      />
-                    </div>
-                  </div>
-                ),
-              )}
-            </div>
+            <Link
+              to="/parse"
+              className="rounded-full border border-[#dfbdae] bg-[#fff9f6]/80 px-7 py-3.5 text-sm font-semibold text-[#594b43] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#d9a18b] hover:bg-[#fff9f6]"
+            >
+              Explore Resume Parser
+            </Link>
           </div>
+
+          {/* Small trust statement */}
+          <p className="mt-10 text-xs tracking-wide text-[#9a8980]">
+            Resume analysis · Skill matching · Candidate insights
+          </p>
+
         </div>
       </div>
     </section>

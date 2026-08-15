@@ -1,0 +1,29 @@
+{
+  "name": "ai-recruitment-platform",
+  "version": "1.0.0",
+  "description": "![Frontend](https://img.shields.io/badge/frontend-React%20%2B%20Vite-4f46e5)\r ![Backend](https://img.shields.io/badge/backend-FastAPI-009688)\r ![License](https://img.shields.io/badge/license-MIT-blue)",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "backend": ".\\venv\\Scripts\\python.exe -m uvicorn app.main:app --reload --app-dir backend",
+    "frontend": "npm --prefix frontend run dev",
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sandrafiona-dev/AI-Recruitment-Platform.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/sandrafiona-dev/AI-Recruitment-Platform/issues"
+  },
+  "homepage": "https://github.com/sandrafiona-dev/AI-Recruitment-Platform#readme",
+  "devDependencies": {
+    "concurrently": "^10.0.4"
+  }
+}
