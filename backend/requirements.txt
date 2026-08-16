@@ -1,4 +1,13 @@
 fastapi
-uvicorn[standard]
+uvicorn
 python-dotenv
 pydantic
+python-multipart
+PyPDF2
+python-docx
+joblib
+numpy
+pandas
+scikit-learn
+httpx
+pytest
