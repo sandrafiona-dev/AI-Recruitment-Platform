@@ -1,9 +1,10 @@
-// Shared Axios client configuration. API requests are added as needed.
+// Shared Axios client configuration.
+// Frontend and backend are deployed together on the same origin.
 
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000",
+  baseURL: import.meta.env.VITE_API_BASE_URL || "",
   headers: {
     "Content-Type": "application/json",
   },
