@@ -20,3 +20,6 @@ datasets/processed/real_resumes.csv
 
 # Large trained model
 ml/models/real_resume_classifier/model.joblib
+
+# Pytest cache
+.pytest_cache/

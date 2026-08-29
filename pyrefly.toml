@@ -1,0 +1,10 @@
+﻿project-includes = [
+  "backend/**/*.py",
+  "tests/**/*.py"
+]
+
+search-path = [
+  "backend"
+]
+
+python-interpreter-path = "venv/Scripts/python.exe"

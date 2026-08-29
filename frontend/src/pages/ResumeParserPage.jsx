@@ -3,6 +3,8 @@ import axios from 'axios';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? "http://localhost:8000" : "");
+
 function ResumeParserPage() {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -26,7 +28,7 @@ function ResumeParserPage() {
     setLoading(true);
     try {
       const response = await axios.post(
-        'http://localhost:8000/api/v1/resumes/parse',
+        `${API_BASE_URL}/api/v1/resumes/parse`,
         formData,
         {
           headers: {

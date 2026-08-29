@@ -1,12 +1,19 @@
 """FastAPI application entry point."""
 
 import logging
+import os
+import sys
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+
+# Ensure repository root is in sys.path so 'ml' module can be loaded by joblib
+repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
 
 from app.api.health import router as health_router
 from app.api.resumes import router as resumes_router
