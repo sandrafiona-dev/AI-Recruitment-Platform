@@ -10,9 +10,9 @@ from app.main import app
 client = TestClient(app)
 
 def test_health_check():
-    response = client.get("/")
+    response = client.get("/health")
     assert response.status_code == 200
-    assert "message" in response.json()
+    assert response.json()["status"] == "healthy"
 
 def test_parse_resume_endpoint_invalid_file():
     # Provide a file with wrong extension
