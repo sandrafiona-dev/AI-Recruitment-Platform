@@ -6,7 +6,7 @@ Combines:
 - Skill compatibility
 - Experience compatibility
 - Role compatibility
-- Prediction outputs
+- ML prediction outputs
 
 The recommendation system considers both the ML-predicted role
 and the candidate's skills when evaluating compatibility with a job.
@@ -31,8 +31,8 @@ class CandidateRecommender:
         self,
         resume_data: dict,
         job_data: dict,
-        predicted_role: str = None,
-        prediction_outputs: dict = None,
+        predicted_role: str | None = None,
+        prediction_outputs: dict | None = None,
     ) -> dict:
 
         # -------------------------------------------------
@@ -40,7 +40,7 @@ class CandidateRecommender:
         # -------------------------------------------------
         match_result = matching_service.match(
             resume_data,
-            job_data
+            job_data,
         )
 
         # -------------------------------------------------
@@ -52,7 +52,10 @@ class CandidateRecommender:
         # -------------------------------------------------
         # 3. Role compatibility
         # -------------------------------------------------
-        candidate_skills = resume_data.get("skills", [])
+        candidate_skills = resume_data.get(
+            "skills",
+            [],
+        )
 
         job_title = (
             job_data.get("job_title")
@@ -64,45 +67,64 @@ class CandidateRecommender:
             predicted_role=predicted_role,
             job_title=job_title,
             candidate_skills=candidate_skills,
-            job_skills=skill_gap.get("matched_skills", []),
-            required_skills=job_data.get("required_skills", []),
+            job_skills=skill_gap.get(
+                "matched_skills",
+                [],
+            ),
+            required_skills=job_data.get(
+                "required_skills",
+                [],
+            ),
         )
 
         # -------------------------------------------------
         # 4. Prediction bonus
         # -------------------------------------------------
         prediction_bonus = self._calculate_prediction_bonus(
-            prediction_outputs
+            prediction_outputs,
         )
 
         # -------------------------------------------------
-        # 5. Weighted recommendation score
+        # 5. Prediction score
+        # -------------------------------------------------
+        prediction_score = self._calculate_prediction_score(
+            prediction_outputs,
+        )
+
+        prediction_label = self._get_prediction_label(
+            prediction_score,
+        )
+
+        # -------------------------------------------------
+        # 6. Weighted recommendation score
         # -------------------------------------------------
         recommendation_score = (
             match_result["match_score"]
             * self.weights["match_score"]
-            +
-            skill_score
+            + skill_score
             * self.weights["skill_score"]
-            +
-            match_result["experience_match"]
+            + match_result["experience_match"]
             * 100
             * self.weights["experience_score"]
-            +
-            role_compat_score
+            + role_compat_score
             * self.weights["role_compatibility"]
-            +
-            prediction_bonus
+            + prediction_bonus
             * self.weights["prediction_bonus"]
         )
 
         recommendation_score = round(
-            min(100, max(0, recommendation_score)),
+            min(
+                100,
+                max(
+                    0,
+                    recommendation_score,
+                ),
+            ),
             2,
         )
 
         # -------------------------------------------------
-        # 6. Reasons
+        # 7. Reasons
         # -------------------------------------------------
         reasons = self._generate_reasons(
             match_result=match_result,
@@ -114,15 +136,23 @@ class CandidateRecommender:
         )
 
         # -------------------------------------------------
-        # 7. Recommendation label
+        # 8. Recommendation label
         # -------------------------------------------------
         recommendation_label = self._get_label(
-            recommendation_score
+            recommendation_score,
         )
 
+        # -------------------------------------------------
+        # 9. Final result
+        # -------------------------------------------------
         return {
             "recommendation_score": recommendation_score,
             "recommendation": recommendation_label,
+
+            # ML prediction information
+            "prediction_score": prediction_score,
+            "prediction_label": prediction_label,
+
             "reasons": reasons,
             "matched_skills": skill_gap["matched_skills"],
             "missing_skills": skill_gap["missing_skills"],
@@ -140,7 +170,7 @@ class CandidateRecommender:
 
     def _calculate_role_compatibility(
         self,
-        predicted_role: str,
+        predicted_role: str | None,
         job_title: str,
         candidate_skills: list,
         job_skills: list,
@@ -159,10 +189,15 @@ class CandidateRecommender:
         if not job_title:
             return 50.0
 
-        predicted_role = (predicted_role or "").lower().strip()
+        predicted_role = (
+            predicted_role or ""
+        ).lower().strip()
+
         job_title = job_title.lower().strip()
 
+        # -------------------------------------------------
         # Normalize skills
+        # -------------------------------------------------
         candidate_skill_set = {
             str(skill).lower().strip()
             for skill in candidate_skills
@@ -176,8 +211,13 @@ class CandidateRecommender:
         # -------------------------------------------------
         # A. Direct predicted-role match
         # -------------------------------------------------
-        predicted_words = set(predicted_role.split())
-        job_words = set(job_title.split())
+        predicted_words = set(
+            predicted_role.split()
+        )
+
+        job_words = set(
+            job_title.split()
+        )
 
         direct_overlap = predicted_words.intersection(
             job_words
@@ -192,8 +232,9 @@ class CandidateRecommender:
         if required_skill_set:
 
             matched_required = (
-                candidate_skill_set
-                .intersection(required_skill_set)
+                candidate_skill_set.intersection(
+                    required_skill_set
+                )
             )
 
             skill_ratio = (
@@ -201,7 +242,9 @@ class CandidateRecommender:
                 / len(required_skill_set)
             )
 
-            skill_based_score = skill_ratio * 100
+            skill_based_score = (
+                skill_ratio * 100
+            )
 
         else:
             skill_based_score = 50.0
@@ -224,13 +267,22 @@ class CandidateRecommender:
                 rec.get("role", "")
             ).lower().strip()
 
-            rec_words = set(rec_role.split())
+            rec_words = set(
+                rec_role.split()
+            )
 
-            if rec_words.intersection(job_words):
+            if rec_words.intersection(
+                job_words
+            ):
 
                 recommendation_score = max(
                     recommendation_score,
-                    float(rec.get("score", 0)),
+                    float(
+                        rec.get(
+                            "score",
+                            0,
+                        )
+                    ),
                 )
 
         # -------------------------------------------------
@@ -251,7 +303,13 @@ class CandidateRecommender:
         # E. Minimum sensible compatibility
         # -------------------------------------------------
         return round(
-            min(100.0, max(0.0, combined_score)),
+            min(
+                100.0,
+                max(
+                    0.0,
+                    combined_score,
+                ),
+            ),
             2,
         )
 
@@ -261,8 +319,18 @@ class CandidateRecommender:
 
     def _calculate_prediction_bonus(
         self,
-        predictions: dict,
+        predictions: dict | None,
     ) -> float:
+        """
+        Calculates the prediction contribution used by
+        the overall recommendation score.
+
+        This is separate from prediction_score.
+
+        prediction_score is the candidate's ML prediction
+        result, while prediction_bonus is the contribution
+        used internally by the recommendation algorithm.
+        """
 
         if not predictions:
             return 50.0
@@ -270,32 +338,237 @@ class CandidateRecommender:
         bonus = 50.0
         count = 0
 
-        interview = predictions.get("interview")
+        # -------------------------------------------------
+        # Interview prediction
+        # -------------------------------------------------
+        interview = predictions.get(
+            "interview"
+        )
 
         if (
             interview
-            and interview.get("predicted_score") is not None
+            and interview.get(
+                "predicted_score"
+            ) is not None
         ):
-            bonus += (
-                interview["predicted_score"] * 0.5
-            )
-            count += 1
 
-        success = predictions.get("success")
+            try:
+                interview_score = float(
+                    interview["predicted_score"]
+                )
+
+                bonus += (
+                    interview_score * 0.5
+                )
+
+                count += 1
+
+            except (
+                ValueError,
+                TypeError,
+            ):
+                pass
+
+        # -------------------------------------------------
+        # Success prediction
+        # -------------------------------------------------
+        success = predictions.get(
+            "success"
+        )
 
         if (
             success
-            and success.get("predicted_success") is not None
+            and success.get(
+                "predicted_success"
+            ) is not None
         ):
+
             if success["predicted_success"]:
                 bonus += 30
 
             count += 1
 
         if count > 0:
-            return min(100.0, bonus)
+            return min(
+                100.0,
+                bonus,
+            )
 
         return 50.0
+
+    # =====================================================
+    # PREDICTION SCORE
+    # =====================================================
+
+    def _calculate_prediction_score(
+        self,
+        predictions: dict | None,
+    ) -> float:
+        """
+        Calculates the candidate's ML prediction score.
+
+        Interview performance contributes 60%.
+        Success probability contributes 40%.
+
+        Interview score:
+            0-100
+
+        Success probability:
+            0-1, converted to 0-100
+
+        The method also handles cases where one of the
+        prediction models is unavailable.
+        """
+
+        if not predictions:
+            return 0.0
+
+        weighted_scores = []
+
+        # -------------------------------------------------
+        # Interview prediction
+        # -------------------------------------------------
+        interview = predictions.get(
+            "interview"
+        )
+
+        if interview:
+
+            interview_score = interview.get(
+                "predicted_score"
+            )
+
+            if interview_score is not None:
+
+                try:
+                    interview_score = float(
+                        interview_score
+                    )
+
+                    interview_score = max(
+                        0.0,
+                        min(
+                            100.0,
+                            interview_score,
+                        ),
+                    )
+
+                    weighted_scores.append(
+                        (
+                            interview_score,
+                            0.60,
+                        )
+                    )
+
+                except (
+                    ValueError,
+                    TypeError,
+                ):
+                    pass
+
+        # -------------------------------------------------
+        # Success prediction
+        # -------------------------------------------------
+        success = predictions.get(
+            "success"
+        )
+
+        if success:
+
+            probability = success.get(
+                "probability"
+            )
+
+            if probability is not None:
+
+                try:
+                    success_score = (
+                        float(probability)
+                        * 100
+                    )
+
+                    success_score = max(
+                        0.0,
+                        min(
+                            100.0,
+                            success_score,
+                        ),
+                    )
+
+                    weighted_scores.append(
+                        (
+                            success_score,
+                            0.40,
+                        )
+                    )
+
+                except (
+                    ValueError,
+                    TypeError,
+                ):
+                    pass
+
+        # -------------------------------------------------
+        # No usable prediction data
+        # -------------------------------------------------
+        if not weighted_scores:
+            return 0.0
+
+        # -------------------------------------------------
+        # Normalize weights when one model is unavailable
+        # -------------------------------------------------
+        total_weight = sum(
+            weight
+            for _, weight in weighted_scores
+        )
+
+        weighted_score = sum(
+            score * weight
+            for score, weight in weighted_scores
+        )
+
+        if total_weight <= 0:
+            return 0.0
+
+        prediction_score = (
+            weighted_score / total_weight
+        )
+
+        return round(
+            min(
+                100.0,
+                max(
+                    0.0,
+                    prediction_score,
+                ),
+            ),
+            2,
+        )
+
+    # =====================================================
+    # PREDICTION LABEL
+    # =====================================================
+
+    def _get_prediction_label(
+        self,
+        prediction_score: float,
+    ) -> str:
+        """
+        Converts the ML prediction score into a
+        recruiter-friendly candidate label.
+        """
+
+        if prediction_score >= 80:
+            return "Strong Candidate"
+
+        elif prediction_score >= 60:
+            return "Promising Candidate"
+
+        elif prediction_score >= 40:
+            return "Potential Candidate"
+
+        else:
+            return "Low Prediction"
 
     # =====================================================
     # REASONS
@@ -313,30 +586,43 @@ class CandidateRecommender:
 
         reasons = []
 
+        # -------------------------------------------------
         # Overall match
+        # -------------------------------------------------
         if match_result["match_score"] >= 70:
+
             reasons.append(
                 "High overall resume-job match score"
             )
 
         elif match_result["match_score"] >= 40:
+
             reasons.append(
                 "Moderate resume-job match score"
             )
 
         else:
+
             reasons.append(
                 "Low resume-job match score"
             )
 
+        # -------------------------------------------------
         # Skill compatibility
-        if skill_gap["skill_match_percentage"] >= 75:
+        # -------------------------------------------------
+        if (
+            skill_gap["skill_match_percentage"]
+            >= 75
+        ):
 
             reasons.append(
                 "Strong skill compatibility"
             )
 
-        elif skill_gap["skill_match_percentage"] >= 50:
+        elif (
+            skill_gap["skill_match_percentage"]
+            >= 50
+        ):
 
             reasons.append(
                 "Moderate skill compatibility"
@@ -347,37 +633,51 @@ class CandidateRecommender:
             reasons.append(
                 "Missing key skills: "
                 + ", ".join(
-                    skill_gap["missing_skills"][:3]
+                    skill_gap[
+                        "missing_skills"
+                    ][:3]
                 )
             )
 
+        # -------------------------------------------------
         # Text similarity
-        if match_result["text_similarity"] >= 0.3:
+        # -------------------------------------------------
+        if (
+            match_result["text_similarity"]
+            >= 0.3
+        ):
 
             reasons.append(
                 "Strong resume-job text similarity"
             )
 
+        # -------------------------------------------------
         # Role compatibility
+        # -------------------------------------------------
         if role_compat >= 70:
 
             reasons.append(
-                f"Strong compatibility with {job_title} role"
+                f"Strong compatibility with "
+                f"{job_title} role"
             )
 
         elif role_compat >= 50:
 
             reasons.append(
-                f"Moderate compatibility with {job_title} role"
+                f"Moderate compatibility with "
+                f"{job_title} role"
             )
 
         elif predicted_role:
 
             reasons.append(
-                f"Predicted role: {predicted_role}"
+                f"Predicted role: "
+                f"{predicted_role}"
             )
 
+        # -------------------------------------------------
         # Interview prediction
+        # -------------------------------------------------
         if predictions:
 
             interview = predictions.get(
@@ -386,52 +686,71 @@ class CandidateRecommender:
 
             if (
                 interview
-                and interview.get("predicted_score")
-                is not None
+                and interview.get(
+                    "predicted_score"
+                ) is not None
             ):
 
-                score = interview[
-                    "predicted_score"
-                ]
-
-                if score >= 70:
-
-                    reasons.append(
-                        "Strong predicted interview "
-                        f"performance ({score}/100)"
+                try:
+                    score = float(
+                        interview[
+                            "predicted_score"
+                        ]
                     )
 
-                else:
+                    if score >= 70:
 
-                    reasons.append(
-                        f"Predicted interview score: "
-                        f"{score}/100"
-                    )
+                        reasons.append(
+                            "Strong predicted interview "
+                            f"performance ({score}/100)"
+                        )
 
+                    else:
+
+                        reasons.append(
+                            "Predicted interview score: "
+                            f"{score}/100"
+                        )
+
+                except (
+                    ValueError,
+                    TypeError,
+                ):
+                    pass
+
+            # -------------------------------------------------
             # Success prediction
+            # -------------------------------------------------
             success = predictions.get(
                 "success"
             )
 
             if (
                 success
-                and success.get("predicted_success")
-                is not None
+                and success.get(
+                    "predicted_success"
+                ) is not None
             ):
 
-                if success["predicted_success"]:
+                if success[
+                    "predicted_success"
+                ]:
 
                     reasons.append(
-                        "Predicted as likely successful candidate"
+                        "Predicted as likely successful "
+                        "candidate"
                     )
 
         return reasons
 
     # =====================================================
-    # LABEL
+    # RECOMMENDATION LABEL
     # =====================================================
 
-    def _get_label(self, score: float) -> str:
+    def _get_label(
+        self,
+        score: float,
+    ) -> str:
 
         if score >= 80:
             return "Strong Match"

@@ -1,3 +1,6 @@
+import re
+from typing import Any
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -10,7 +13,11 @@ class MatchingService:
             "experience_match": 0.10,
         }
 
-    def calculate_skill_gap(self, candidate_skills: list, job_skills: list) -> dict:
+    def calculate_skill_gap(
+        self,
+        candidate_skills: list,
+        job_skills: list,
+    ) -> dict[str, Any]:
         """
         Compare candidate skills against required job skills.
         """
@@ -19,21 +26,28 @@ class MatchingService:
             return {
                 "matched_skills": candidate_skills,
                 "missing_skills": [],
-                "skill_match_percentage": 100 if candidate_skills else 0,
+                "skill_match_percentage": (
+                    100 if candidate_skills else 0
+                ),
             }
 
-        candidate_set = set(
-            skill.lower().strip()
+        candidate_set = {
+            str(skill).lower().strip()
             for skill in candidate_skills
-        )
+        }
 
-        job_set = set(
-            skill.lower().strip()
+        job_set = {
+            str(skill).lower().strip()
             for skill in job_skills
+        }
+
+        matched_skills = sorted(
+            job_set.intersection(candidate_set)
         )
 
-        matched_skills = sorted(job_set.intersection(candidate_set))
-        missing_skills = sorted(job_set.difference(candidate_set))
+        missing_skills = sorted(
+            job_set.difference(candidate_set)
+        )
 
         match_percentage = (
             len(matched_skills) / len(job_set) * 100
@@ -44,13 +58,16 @@ class MatchingService:
         return {
             "matched_skills": matched_skills,
             "missing_skills": missing_skills,
-            "skill_match_percentage": round(match_percentage, 2),
+            "skill_match_percentage": round(
+                match_percentage,
+                2,
+            ),
         }
 
     def calculate_text_similarity(
         self,
         resume_text: str,
-        job_text: str
+        job_text: str,
     ) -> float:
         """
         Calculate TF-IDF cosine similarity between
@@ -60,47 +77,123 @@ class MatchingService:
         if not resume_text or not job_text:
             return 0.0
 
-        vectorizer = TfidfVectorizer(stop_words="english")
+        vectorizer = TfidfVectorizer(
+            stop_words="english"
+        )
 
         try:
             tfidf_matrix = vectorizer.fit_transform(
                 [resume_text, job_text]
             )
 
-            similarity = cosine_similarity(
-                tfidf_matrix[0:1],
-                tfidf_matrix[1:2]
-            )[0][0]
+            similarity_matrix = cosine_similarity(
+                tfidf_matrix,
+                tfidf_matrix,
+            )
 
-            return float(similarity)
+            similarity_values = similarity_matrix.tolist()
+
+            return float(similarity_values[0][1])
 
         except ValueError:
             return 0.0
 
     def calculate_experience_match(
         self,
-        resume_exp,
-        job_exp
+        resume_exp: Any,
+        job_exp: str,
     ) -> float:
         """
-        Calculate experience compatibility.
+        Compare candidate experience against the job requirement.
 
-        For now:
-        - If the job does not specify experience -> 100%
-        - If experience requirements exist -> 70% MVP baseline
-
-        This can later be replaced with real experience-year extraction.
+        Returns a score between 0.0 and 1.0.
         """
 
-        if not job_exp or str(job_exp).strip().lower() in {
+        # No job experience requirement.
+        if not job_exp or job_exp.strip().lower() in {
             "",
             "not specified",
         }:
             return 1.0
 
-        return 0.7
+        # ---------------------------------------------
+        # Extract required years from job description
+        # ---------------------------------------------
 
-    def match(self, resume_data: dict, job_data: dict) -> dict:
+        job_text = job_exp
+
+        job_match = re.search(
+            r"(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)",
+            job_text,
+            re.IGNORECASE,
+        )
+
+        if not job_match:
+            return 1.0
+
+        required_years = float(job_match.group(1))
+
+        # ---------------------------------------------
+        # Extract candidate experience
+        # ---------------------------------------------
+
+        candidate_years = 0.0
+
+        if isinstance(resume_exp, list) and resume_exp:
+            try:
+                candidate_years = max(
+                    float(value)
+                    for value in resume_exp
+                )
+            except (TypeError, ValueError):
+                candidate_years = 0.0
+
+        elif isinstance(resume_exp, (int, float)):
+            candidate_years = float(resume_exp)
+
+        # ---------------------------------------------
+        # Calculate experience score
+        # ---------------------------------------------
+
+        if required_years <= 0:
+            return 1.0
+
+        experience_ratio = (
+            candidate_years / required_years
+        )
+
+        # Candidates meeting or exceeding the requirement
+        # receive full experience credit.
+        return min(
+            experience_ratio,
+            1.0,
+        )
+
+    def get_recommendation(
+        self,
+        match_score: float,
+    ) -> str:
+        """
+        Convert the overall match score into a recruiter-friendly
+        recommendation.
+        """
+
+        if match_score >= 80:
+            return "Strong Match"
+
+        if match_score >= 65:
+            return "Good Match"
+
+        if match_score >= 50:
+            return "Potential Match"
+
+        return "Low Match"
+
+    def match(
+        self,
+        resume_data: dict,
+        job_data: dict,
+    ) -> dict[str, Any]:
         """
         Calculate the overall resume-to-job match.
         """
@@ -109,12 +202,19 @@ class MatchingService:
         # 1. TEXT SIMILARITY
         # ---------------------------------------------
 
-        resume_text = resume_data.get("raw_text", "")
-        job_text = job_data.get("description", "")
+        resume_text = resume_data.get(
+            "raw_text",
+            "",
+        )
+
+        job_text = job_data.get(
+            "description",
+            "",
+        )
 
         text_sim = self.calculate_text_similarity(
             resume_text,
-            job_text
+            job_text,
         )
 
         # ---------------------------------------------
@@ -123,7 +223,7 @@ class MatchingService:
 
         skill_gap = self.calculate_skill_gap(
             resume_data.get("skills", []),
-            job_data.get("required_skills", [])
+            job_data.get("required_skills", []),
         )
 
         skill_score = (
@@ -135,8 +235,8 @@ class MatchingService:
         # ---------------------------------------------
 
         exp_score = self.calculate_experience_match(
-            resume_data.get("experience", []),
-            job_data.get("experience", "")
+            resume_data.get("experience", ""),
+            job_data.get("experience", ""),
         )
 
         # ---------------------------------------------
@@ -144,17 +244,41 @@ class MatchingService:
         # ---------------------------------------------
 
         match_score = (
-            (text_sim * self.weights["text_similarity"])
-            + (skill_score * self.weights["skill_match"])
-            + (exp_score * self.weights["experience_match"])
+            (
+                text_sim
+                * self.weights["text_similarity"]
+            )
+            + (
+                skill_score
+                * self.weights["skill_match"]
+            )
+            + (
+                exp_score
+                * self.weights["experience_match"]
+            )
         ) * 100
 
+        match_score = round(match_score, 2)
+
+        # ---------------------------------------------
+        # 5. RECOMMENDATION
+        # ---------------------------------------------
+
+        recommendation = self.get_recommendation(
+            match_score
+        )
+
+        # ---------------------------------------------
+        # 6. RESULT
+        # ---------------------------------------------
+
         return {
-            "match_score": round(match_score, 2),
+            "match_score": match_score,
             "text_similarity": round(text_sim, 2),
             "skill_match": round(skill_score, 2),
             "experience_match": round(exp_score, 2),
             "skill_gap": skill_gap,
+            "recommendation": recommendation,
         }
 
 

@@ -166,6 +166,34 @@ class ResumeParser:
 
         return skill_extractor.extract_skills(text)
 
+    def extract_experience(self, text: str) -> list:
+        """
+        Extract approximate years of professional experience
+        from resume text.
+
+        Returns a list containing detected experience values.
+        """
+        if not text:
+            return []
+
+        experience_patterns = [
+            r"(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:professional\s+)?experience",
+            r"experience\s*[:\-]?\s*(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)",
+            r"(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\s+experience",
+        ]
+
+        for pattern in experience_patterns:
+            match = re.search(
+                pattern,
+                text,
+                re.IGNORECASE,
+            )
+
+            if match:
+                return [float(match.group(1))]
+
+        return []
+
     def parse(self, file_bytes: bytes, filename: str) -> dict:
 
         text = self.extract_text(file_bytes, filename)
@@ -176,6 +204,6 @@ class ResumeParser:
             "phone": self.extract_phone(text),
             "skills": self.extract_skills(text),
             "education": [],
-            "experience": [],
+            "experience": self.extract_experience(text),
             "raw_text": text.strip(),
         }

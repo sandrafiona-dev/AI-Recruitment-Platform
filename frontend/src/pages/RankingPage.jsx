@@ -1,297 +1,681 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import Navbar from '../components/Navbar';
-import Footer from '../components/Footer';
+import React, { useEffect, useMemo, useState } from "react";
+import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? "http://localhost:8000" : "");
+const EVALUATED_CANDIDATES_STORAGE_KEY =
+  "recruita_evaluated_candidates";
+
+const SHORTLIST_STORAGE_KEY =
+  "recruita_shortlisted_candidates";
+
+const getPredictionLabel = (score) => {
+  if (score === null || score === undefined) {
+    return "Prediction unavailable";
+  }
+
+  const numericScore = Number(score);
+
+  if (numericScore >= 80) return "Strong Candidate";
+  if (numericScore >= 60) return "Promising Candidate";
+  if (numericScore >= 40) return "Potential Candidate";
+
+  return "Low Prediction";
+};
+
+const getStatusClasses = (status) => {
+  switch (status) {
+    case "Shortlisted":
+      return "border-[#b9ccb0] bg-[#edf3e9] text-[#58734c]";
+
+    case "Rejected":
+      return "border-[#e5c1b5] bg-[#fff0eb] text-[#a34f37]";
+
+    default:
+      return "border-[#dfc9bd] bg-[#f5eee7] text-[#8b6b56]";
+  }
+};
+
+const getPredictionClasses = (score) => {
+  if (score === null || score === undefined) {
+    return "bg-[#f5eee7] text-[#8b6b56]";
+  }
+
+  const numericScore = Number(score);
+
+  if (numericScore >= 80) {
+    return "bg-[#e9f2e5] text-[#58734c]";
+  }
+
+  if (numericScore >= 60) {
+    return "bg-[#edf3e9] text-[#637b58]";
+  }
+
+  if (numericScore >= 40) {
+    return "bg-[#fff4df] text-[#99713d]";
+  }
+
+  return "bg-[#fff0eb] text-[#a85a43]";
+};
 
 function RankingPage() {
-  const [jobDescription, setJobDescription] = useState('');
-  const [resumes, setResumes] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [rankingResults, setRankingResults] = useState(null);
-  const [error, setError] = useState('');
+  const [candidates, setCandidates] = useState([]);
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [jobFilter, setJobFilter] = useState("All Jobs");
 
-  const handleFileChange = (e) => {
-    const files = Array.from(e.target.files);
-    setResumes((prev) => [...prev, ...files]);
-    setError('');
-    setRankingResults(null);
-  };
-
-  const handleRemoveFile = (index) => {
-    setResumes((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleRank = async () => {
-    if (!jobDescription.trim()) {
-      setError('Please enter a job description.');
-      return;
-    }
-    if (resumes.length === 0) {
-      setError('Please upload at least one resume.');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setRankingResults(null);
-
+  const loadCandidates = () => {
     try {
-      // 1. Parse Job Description
-      const jobRes = await axios.post(`${API_BASE_URL}/api/v1/jobs/parse`, {
-        description: jobDescription,
-      });
-      const parsedJobData = jobRes.data;
-
-      // 2. Parse all resumes
-      const parsedResumes = await Promise.all(
-        resumes.map(async (file) => {
-          const formData = new FormData();
-          formData.append('file', file);
-          const resumeRes = await axios.post(
-            `${API_BASE_URL}/api/v1/resumes/parse`,
-            formData,
-            { headers: { 'Content-Type': 'multipart/form-data' } }
-          );
-          return resumeRes.data;
-        })
+      const evaluated = JSON.parse(
+        localStorage.getItem(
+          EVALUATED_CANDIDATES_STORAGE_KEY
+        ) || "[]"
       );
 
-      // 3. Rank candidates
-      const rankRes = await axios.post(`${API_BASE_URL}/api/v1/candidates/rank`, {
-        candidates: parsedResumes,
-        job_data: parsedJobData,
-      });
+      const statuses = JSON.parse(
+        localStorage.getItem(
+          SHORTLIST_STORAGE_KEY
+        ) || "[]"
+      );
 
-      setRankingResults(rankRes.data);
+      const statusMap = new Map(
+        statuses.map((item) => [
+          item.key,
+          item.status,
+        ])
+      );
 
-      // 4. Persist session to Dashboard
-      try {
-        const storedSessions = JSON.parse(localStorage.getItem('recruitaSessions') || '[]');
-        const newSession = {
-          id: Date.now().toString(),
-          date: new Date().toISOString(),
-          jobTitle: parsedJobData.job_title || 'Untitled Role',
-          candidateCount: parsedResumes.length,
-          strongMatches: rankRes.data.filter(c => c.match_score >= 80).length,
-          topCandidates: rankRes.data.slice(0, 3).map(c => ({
-            name: c.name,
-            score: c.match_score
-          }))
-        };
-        localStorage.setItem('recruitaSessions', JSON.stringify([newSession, ...storedSessions]));
-      } catch (e) {
-        // Silent catch for localStorage issues in production
-      }
+      const merged = Array.isArray(evaluated)
+        ? evaluated.map((candidate) => ({
+          ...candidate,
+          status:
+            statusMap.get(candidate.key) ||
+            candidate.status ||
+            "New",
+        }))
+        : [];
+
+      setCandidates(merged);
     } catch (err) {
-      const detail = err.response?.data?.detail;
-      setError(
-        detail || 'Unable to complete candidate ranking. Please try again later.'
+      console.error(
+        "Unable to load evaluated candidates:",
+        err
       );
-    } finally {
-      setLoading(false);
+
+      setCandidates([]);
     }
   };
+
+  useEffect(() => {
+    loadCandidates();
+
+    const handleStorageChange = () => {
+      loadCandidates();
+    };
+
+    window.addEventListener(
+      "storage",
+      handleStorageChange
+    );
+
+    return () => {
+      window.removeEventListener(
+        "storage",
+        handleStorageChange
+      );
+    };
+  }, []);
+
+  const jobs = useMemo(() => {
+    return [
+      ...new Set(
+        candidates
+          .map((candidate) => candidate.jobTitle)
+          .filter(Boolean)
+      ),
+    ];
+  }, [candidates]);
+
+  const filteredCandidates = useMemo(() => {
+    return candidates
+      .filter((candidate) => {
+        const statusMatches =
+          statusFilter === "All" ||
+          candidate.status === statusFilter;
+
+        const jobMatches =
+          jobFilter === "All Jobs" ||
+          candidate.jobTitle === jobFilter;
+
+        return statusMatches && jobMatches;
+      })
+      .sort((a, b) => {
+        return (
+          Number(b.match_score || b.matchScore || 0) -
+          Number(a.match_score || a.matchScore || 0)
+        );
+      });
+  }, [
+    candidates,
+    statusFilter,
+    jobFilter,
+  ]);
+
+  const shortlistedCount = candidates.filter(
+    (candidate) =>
+      candidate.status === "Shortlisted"
+  ).length;
+
+  const rejectedCount = candidates.filter(
+    (candidate) =>
+      candidate.status === "Rejected"
+  ).length;
+
+  const newCount = candidates.filter(
+    (candidate) =>
+      !candidate.status ||
+      candidate.status === "New"
+  ).length;
 
   return (
     <div className="min-h-screen bg-[#fff8f3] text-[#29231f]">
       <Navbar />
 
-      <main className="mx-auto max-w-6xl px-6 py-12 sm:px-10 lg:py-16">
-        {/* Page introduction */}
+      <main className="mx-auto max-w-7xl px-6 py-12 sm:px-10 lg:py-16">
+
+        {/* HEADER */}
         <section className="mb-10">
           <p className="mb-3 text-sm font-medium uppercase tracking-[0.2em] text-[#b96a50]">
-            Candidate Ranking
+            Candidate Evaluation
           </p>
-          <h1 className="text-4xl font-semibold tracking-[-0.03em] text-[#29231f] sm:text-5xl">
-            Find the strongest candidates.
-          </h1>
-          <p className="mt-4 max-w-3xl text-base leading-7 text-[#766961] sm:text-lg">
-            Compare multiple resumes against one job description and let Recruita surface the strongest matches.
-          </p>
-        </section>
 
-        {/* Inputs */}
-        <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Job Description Card */}
-          <div className="rounded-3xl border border-[#ead8ce] bg-[#fffdfb] p-6 shadow-[0_18px_50px_rgba(95,65,50,0.06)] sm:p-8">
-            <h2 className="text-xl font-semibold text-[#332923]">Job Description</h2>
-            <p className="mt-2 mb-5 text-sm leading-6 text-[#82736b]">
-              Tell Recruita what you're looking for.
-            </p>
-            <textarea
-              rows={9}
-              value={jobDescription}
-              onChange={(e) => setJobDescription(e.target.value)}
-              className="w-full resize-none rounded-2xl border border-[#dfc9bd] bg-[#fff8f3] p-4 text-sm text-[#493d36] shadow-sm outline-none transition placeholder:text-[#a29289] focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/15"
-              placeholder="Paste the job description here..."
-            />
-          </div>
-
-          {/* Resumes Card */}
-          <div className="flex flex-col rounded-3xl border border-[#ead8ce] bg-[#fffdfb] p-6 shadow-[0_18px_50px_rgba(95,65,50,0.06)] sm:p-8">
-            <h2 className="text-xl font-semibold text-[#332923]">Candidate Resumes</h2>
-            <p className="mt-2 mb-5 text-sm leading-6 text-[#82736b]">
-              Upload multiple resumes to compare candidates for this role.
-            </p>
-
-            <div className="mb-5 rounded-2xl border border-dashed border-[#dcb8a8] bg-[#fff8f3] p-5">
-              <input
-                type="file"
-                multiple
-                accept=".pdf,.docx,.txt"
-                onChange={handleFileChange}
-                className="block w-full cursor-pointer text-sm text-[#766961] file:mr-4 file:rounded-full file:border-0 file:bg-[#f3ded4] file:px-5 file:py-2.5 file:text-sm file:font-semibold file:text-[#a6573e] hover:file:bg-[#ecd0c3] file:transition-colors"
-              />
-            </div>
-
-            {resumes.length > 0 && (
-              <div className="flex-1 overflow-y-auto pr-2" style={{ maxHeight: '200px' }}>
-                <ul className="space-y-3">
-                  {resumes.map((file, index) => (
-                    <li key={index} className="flex items-center justify-between rounded-xl bg-[#fff8f3] border border-[#ead8ce] px-4 py-3 text-sm">
-                      <span className="text-[#493d36] font-medium truncate pr-4">{file.name}</span>
-                      <button
-                        onClick={() => handleRemoveFile(index)}
-                        className="text-[#a6573e] hover:text-[#c96749] font-medium text-xs uppercase tracking-wider shrink-0"
-                      >
-                        Remove
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Action Button */}
-        <section className="mt-8">
-          <button
-            onClick={handleRank}
-            disabled={loading || !jobDescription.trim() || resumes.length === 0}
-            className="w-full rounded-full bg-[#d97757] px-6 py-4 font-semibold text-white shadow-md shadow-[#d97757]/15 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#c96749] hover:shadow-lg disabled:cursor-not-allowed disabled:bg-[#d9ccc5] disabled:shadow-none"
-          >
-            {loading ? 'Ranking Candidates...' : 'Rank Candidates'}
-          </button>
-          {error && (
-            <div className="mt-5 rounded-2xl border border-[#edc8bb] bg-[#fff0eb] px-5 py-4 text-sm text-[#b04f36]">
-              {error}
-            </div>
-          )}
-        </section>
-
-        {/* Results */}
-        <section className="mt-12">
-          {!rankingResults && !loading && !error && (
-            <div className="rounded-3xl border border-[#ead8ce] bg-[#fffdfb] p-12 text-center shadow-[0_12px_35px_rgba(95,65,50,0.03)]">
-              <p className="text-sm text-[#897971]">Your ranked candidates will appear here.</p>
-            </div>
-          )}
-
-          {rankingResults && rankingResults.length === 0 && (
-            <div className="rounded-3xl border border-[#ead8ce] bg-[#fffdfb] p-12 text-center shadow-[0_12px_35px_rgba(95,65,50,0.03)]">
-              <p className="text-sm text-[#897971]">No candidates could be ranked.</p>
-            </div>
-          )}
-
-          {rankingResults && rankingResults.length > 0 && (
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="mb-3 text-sm font-medium uppercase tracking-[0.2em] text-[#b96a50]">
+              <h1 className="text-4xl font-semibold tracking-[-0.03em] text-[#29231f] sm:text-5xl">
                 Candidate Ranking
-              </p>
-              <h3 className="mb-6 text-2xl font-semibold tracking-tight text-[#29231f]">
-                Top candidates for this role
-              </h3>
+              </h1>
 
-              <div className="space-y-6">
-                {rankingResults.map((candidate, idx) => (
-                  <div key={idx} className="flex flex-col md:flex-row gap-6 rounded-3xl border border-[#ead8ce] bg-[#fffdfb] p-6 shadow-[0_12px_35px_rgba(95,65,50,0.04)] sm:p-8 transition-transform duration-300 hover:-translate-y-1 hover:shadow-lg">
-                    {/* Position & Basic Info */}
-                    <div className="flex w-full md:w-1/3 flex-col justify-between">
-                      <div>
-                        <div className="flex items-center gap-3">
-                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f4dfd5] text-xs font-bold text-[#a6573e]">
-                            #{idx + 1}
-                          </span>
-                          <h4 className="text-2xl font-semibold text-[#29231f] break-words">
-                            {candidate.name}
-                          </h4>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-6 md:mt-0">
-                        <p className="text-[3.5rem] font-extrabold leading-none tracking-tight text-[#d97757]">
-                          {candidate.match_score}%
+              <p className="mt-4 max-w-3xl text-base leading-7 text-[#766961] sm:text-lg">
+                Review evaluated candidates across your job
+                postings and track recruitment decisions in
+                one place.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={loadCandidates}
+              className="rounded-full border border-[#dfc9bd] bg-[#fffdfb] px-5 py-3 text-sm font-semibold text-[#6f625b] transition hover:bg-[#fff3ee]"
+            >
+              Refresh Results
+            </button>
+          </div>
+        </section>
+
+        {/* SUMMARY */}
+        <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-3xl border border-[#ead8ce] bg-[#fffdfb] p-6 shadow-[0_12px_35px_rgba(95,65,50,0.04)]">
+            <p className="text-sm text-[#897971]">
+              Evaluated Candidates
+            </p>
+
+            <p className="mt-2 text-3xl font-extrabold text-[#d97757]">
+              {candidates.length}
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-[#d9e4d3] bg-[#f8fbf5] p-6">
+            <p className="text-sm text-[#718266]">
+              Shortlisted
+            </p>
+
+            <p className="mt-2 text-3xl font-extrabold text-[#58734c]">
+              {shortlistedCount}
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-[#ead8ce] bg-[#fffdfb] p-6">
+            <p className="text-sm text-[#897971]">
+              New
+            </p>
+
+            <p className="mt-2 text-3xl font-extrabold text-[#8b6b56]">
+              {newCount}
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-[#ead8ce] bg-[#fffdfb] p-6">
+            <p className="text-sm text-[#897971]">
+              Rejected
+            </p>
+
+            <p className="mt-2 text-3xl font-extrabold text-[#a34f37]">
+              {rejectedCount}
+            </p>
+          </div>
+        </section>
+
+        {/* FILTERS */}
+        <section className="mb-8 rounded-3xl border border-[#ead8ce] bg-[#fffdfb] p-5 shadow-[0_12px_35px_rgba(95,65,50,0.04)] sm:p-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-[#594b43]">
+                Job
+              </label>
+
+              <select
+                value={jobFilter}
+                onChange={(e) =>
+                  setJobFilter(e.target.value)
+                }
+                className="w-full rounded-2xl border border-[#dfc9bd] bg-[#fff8f3] px-4 py-3 text-sm font-medium text-[#493d36] outline-none focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/15"
+              >
+                <option>All Jobs</option>
+
+                {jobs.map((job) => (
+                  <option key={job}>
+                    {job}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-[#594b43]">
+                Candidate Status
+              </label>
+
+              <select
+                value={statusFilter}
+                onChange={(e) =>
+                  setStatusFilter(e.target.value)
+                }
+                className="w-full rounded-2xl border border-[#dfc9bd] bg-[#fff8f3] px-4 py-3 text-sm font-medium text-[#493d36] outline-none focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/15"
+              >
+                <option value="All">
+                  All Candidates
+                </option>
+                <option value="New">New</option>
+                <option value="Shortlisted">
+                  Shortlisted
+                </option>
+                <option value="Rejected">
+                  Rejected
+                </option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        {/* SHORTLISTED SECTION */}
+        {shortlistedCount > 0 && (
+          <section className="mb-10">
+            <div className="mb-5">
+              <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#b96a50]">
+                Shortlist
+              </p>
+
+              <h2 className="mt-1 text-2xl font-semibold text-[#29231f]">
+                Shortlisted Candidates
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {candidates
+                .filter(
+                  (candidate) =>
+                    candidate.status ===
+                    "Shortlisted"
+                )
+                .sort(
+                  (a, b) =>
+                    Number(
+                      b.match_score ||
+                      b.matchScore ||
+                      0
+                    ) -
+                    Number(
+                      a.match_score ||
+                      a.matchScore ||
+                      0
+                    )
+                )
+                .map((candidate, index) => (
+                  <div
+                    key={candidate.key}
+                    className="rounded-3xl border border-[#d9e4d3] bg-[#f8fbf5] p-6 shadow-[0_12px_35px_rgba(95,65,50,0.04)]"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <span className="inline-flex rounded-full bg-[#e5efdf] px-3 py-1 text-xs font-semibold text-[#58734c]">
+                          ✓ Shortlisted
+                        </span>
+
+                        <h3 className="mt-3 break-words text-xl font-semibold text-[#332923]">
+                          {candidate.candidateName ||
+                            candidate.name ||
+                            "Unknown Candidate"}
+                        </h3>
+
+                        <p className="mt-1 text-sm text-[#766961]">
+                          {candidate.jobTitle ||
+                            "Untitled Role"}
                         </p>
-                        <p className="mt-2 font-medium text-[#766961]">Strong Match</p>
+                      </div>
+
+                      <div className="shrink-0 text-right">
+                        <p className="text-xs text-[#897971]">
+                          Match
+                        </p>
+
+                        <p className="mt-1 text-2xl font-extrabold text-[#d97757]">
+                          {Number(
+                            candidate.match_score ||
+                            candidate.matchScore ||
+                            0
+                          ).toFixed(1)}
+                          %
+                        </p>
                       </div>
                     </div>
 
-                    {/* Breakdown */}
-                    <div className="w-full md:w-2/3 grid grid-cols-1 gap-6 sm:grid-cols-2">
-                      {/* Skills */}
-                      <div className="space-y-5">
-                        <div className="rounded-2xl border border-[#e3d2c7] bg-[#fdf8f4] p-5">
-                          <h5 className="mb-3 text-sm font-semibold text-[#76503f]">Matched Skills</h5>
-                          <div className="flex flex-wrap gap-2">
-                            {candidate.details.skill_gap.matched_skills.length > 0 ? (
-                              candidate.details.skill_gap.matched_skills.map((skill, sIdx) => (
-                                <span key={sIdx} className="rounded-full border border-[#d9b8a8] bg-[#f3dfd5] px-3 py-1 text-xs font-medium text-[#95513b]">
-                                  {skill}
-                                </span>
-                              ))
-                            ) : (
-                              <span className="text-xs text-[#897971]">None</span>
-                            )}
-                          </div>
-                        </div>
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${getPredictionClasses(
+                          candidate.prediction_score
+                        )}`}
+                      >
+                        {candidate.prediction_score !==
+                          null &&
+                          candidate.prediction_score !==
+                          undefined
+                          ? `${Number(
+                            candidate.prediction_score
+                          ).toFixed(1)}%`
+                          : "—"}
+                      </span>
 
-                        <div className="rounded-2xl border border-[#e8d5cc] bg-[#fff8f3] p-5">
-                          <h5 className="mb-3 text-sm font-semibold text-[#76503f]">Missing Skills</h5>
-                          <div className="flex flex-wrap gap-2">
-                            {candidate.details.skill_gap.missing_skills.length > 0 ? (
-                              candidate.details.skill_gap.missing_skills.map((skill, sIdx) => (
-                                <span key={sIdx} className="rounded-full border border-[#e5c8bc] bg-[#fff0eb] px-3 py-1 text-xs font-medium text-[#a85a43]">
-                                  {skill}
-                                </span>
-                              ))
-                            ) : (
-                              <span className="text-xs text-[#897971]">None</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Scores */}
-                      <div className="rounded-2xl border border-[#ead8ce] bg-[#fff8f3] p-5">
-                        <h5 className="mb-5 text-sm font-semibold text-[#76503f]">Score Breakdown</h5>
-                        <ul className="space-y-4">
-                          <li className="flex items-center justify-between">
-                            <span className="text-sm text-[#766961]">Text Similarity</span>
-                            <span className="font-semibold text-[#493d36]">
-                              {Math.round(candidate.details.text_similarity * 100)}%
-                            </span>
-                          </li>
-                          <li className="flex items-center justify-between">
-                            <span className="text-sm text-[#766961]">Skill Match</span>
-                            <span className="font-semibold text-[#493d36]">
-                              {Math.round(candidate.details.skill_match * 100)}%
-                            </span>
-                          </li>
-                          <li className="flex items-center justify-between">
-                            <span className="text-sm text-[#766961]">Experience Match</span>
-                            <span className="font-semibold text-[#493d36]">
-                              {Math.round(candidate.details.experience_match * 100)}%
-                            </span>
-                          </li>
-                        </ul>
-                      </div>
+                      <span className="rounded-full bg-[#fffdfb] px-3 py-1 text-xs font-medium text-[#766961]">
+                        {getPredictionLabel(
+                          candidate.prediction_score
+                        )}
+                      </span>
                     </div>
                   </div>
                 ))}
+            </div>
+          </section>
+        )}
+
+        {/* ALL EVALUATED CANDIDATES */}
+        <section>
+          <div className="mb-5">
+            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#b96a50]">
+              Evaluation Report
+            </p>
+
+            <h2 className="mt-1 text-2xl font-semibold text-[#29231f]">
+              All Evaluated Candidates
+            </h2>
+          </div>
+
+          {filteredCandidates.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-[#ddc3b6] bg-[#fffdfb] px-6 py-16 text-center">
+              <div className="mx-auto max-w-md">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#f3ded4] text-2xl text-[#b66348]">
+                  +
+                </div>
+
+                <h3 className="mt-5 text-xl font-semibold text-[#332923]">
+                  No evaluated candidates yet
+                </h3>
+
+                <p className="mt-2 text-sm leading-6 text-[#82736b]">
+                  Go to the Job Board, open Manage Candidates,
+                  upload resumes, and run Candidate Evaluation.
+                </p>
               </div>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {filteredCandidates.map(
+                (candidate, index) => {
+                  const matchScore = Number(
+                    candidate.match_score ||
+                    candidate.matchScore ||
+                    0
+                  );
+
+                  const predictionScore =
+                    candidate.prediction_score;
+
+                  const skillGap =
+                    candidate.details?.skill_gap ||
+                    {};
+
+                  const matchedSkills =
+                    Array.isArray(
+                      skillGap.matched_skills
+                    )
+                      ? skillGap.matched_skills
+                      : [];
+
+                  const missingSkills =
+                    Array.isArray(
+                      skillGap.missing_skills
+                    )
+                      ? skillGap.missing_skills
+                      : [];
+
+                  return (
+                    <article
+                      key={candidate.key}
+                      className="rounded-3xl border border-[#ead8ce] bg-[#fffdfb] p-6 shadow-[0_12px_35px_rgba(95,65,50,0.04)] sm:p-7"
+                    >
+                      <div className="flex flex-col gap-6">
+
+                        {/* HEADER */}
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="flex min-w-0 items-start gap-3">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f4dfd5] text-xs font-bold text-[#a6573e]">
+                              #{index + 1}
+                            </span>
+
+                            <div className="min-w-0">
+                              <h3 className="break-words text-2xl font-semibold text-[#29231f]">
+                                {candidate.candidateName ||
+                                  candidate.name ||
+                                  "Unknown Candidate"}
+                              </h3>
+
+                              <p className="mt-1 text-sm text-[#8a7b73]">
+                                {candidate.jobTitle ||
+                                  "Untitled Role"}
+                              </p>
+
+                              <span
+                                className={`mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getStatusClasses(
+                                  candidate.status
+                                )}`}
+                              >
+                                {candidate.status ||
+                                  "New"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 sm:min-w-[320px]">
+                            <div className="rounded-2xl bg-[#fff8f3] p-4">
+                              <p className="text-xs text-[#96877f]">
+                                Match Score
+                              </p>
+
+                              <p className="mt-1 text-3xl font-extrabold text-[#d97757]">
+                                {matchScore.toFixed(1)}%
+                              </p>
+                            </div>
+
+                            <div className="rounded-2xl bg-[#fff8f3] p-4">
+                              <p className="text-xs text-[#96877f]">
+                                Prediction
+                              </p>
+
+                              <p className="mt-1 text-3xl font-extrabold text-[#8f5a45]">
+                                {predictionScore !==
+                                  null &&
+                                  predictionScore !==
+                                  undefined
+                                  ? `${Number(
+                                    predictionScore
+                                  ).toFixed(1)}%`
+                                  : "—"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* DETAILS */}
+                        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+
+                          <div className="rounded-2xl border border-[#e3d2c7] bg-[#fdf8f4] p-5">
+                            <h4 className="mb-3 text-sm font-semibold text-[#76503f]">
+                              Matched Skills
+                            </h4>
+
+                            <div className="flex flex-wrap gap-2">
+                              {matchedSkills.length > 0 ? (
+                                matchedSkills.map(
+                                  (skill, skillIndex) => (
+                                    <span
+                                      key={skillIndex}
+                                      className="rounded-full border border-[#d9b8a8] bg-[#f3dfd5] px-3 py-1 text-xs font-medium text-[#95513b]"
+                                    >
+                                      {skill}
+                                    </span>
+                                  )
+                                )
+                              ) : (
+                                <span className="text-xs text-[#897971]">
+                                  None
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="rounded-2xl border border-[#e8d5cc] bg-[#fff8f3] p-5">
+                            <h4 className="mb-3 text-sm font-semibold text-[#76503f]">
+                              Missing Skills
+                            </h4>
+
+                            <div className="flex flex-wrap gap-2">
+                              {missingSkills.length > 0 ? (
+                                missingSkills.map(
+                                  (skill, skillIndex) => (
+                                    <span
+                                      key={skillIndex}
+                                      className="rounded-full border border-[#e5c8bc] bg-[#fff0eb] px-3 py-1 text-xs font-medium text-[#a85a43]"
+                                    >
+                                      {skill}
+                                    </span>
+                                  )
+                                )
+                              ) : (
+                                <span className="text-xs text-[#897971]">
+                                  None
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="rounded-2xl border border-[#ead8ce] bg-[#fff8f3] p-5">
+                            <h4 className="mb-5 text-sm font-semibold text-[#76503f]">
+                              Score Breakdown
+                            </h4>
+
+                            <div className="space-y-4">
+                              <div className="flex justify-between">
+                                <span className="text-sm text-[#766961]">
+                                  Text Similarity
+                                </span>
+
+                                <strong>
+                                  {Math.round(
+                                    Number(
+                                      candidate.details
+                                        ?.text_similarity ||
+                                      0
+                                    ) * 100
+                                  )}
+                                  %
+                                </strong>
+                              </div>
+
+                              <div className="flex justify-between">
+                                <span className="text-sm text-[#766961]">
+                                  Skill Match
+                                </span>
+
+                                <strong>
+                                  {Math.round(
+                                    Number(
+                                      candidate.details
+                                        ?.skill_match ||
+                                      0
+                                    ) * 100
+                                  )}
+                                  %
+                                </strong>
+                              </div>
+
+                              <div className="flex justify-between">
+                                <span className="text-sm text-[#766961]">
+                                  Experience Match
+                                </span>
+
+                                <strong>
+                                  {Math.round(
+                                    Number(
+                                      candidate.details
+                                        ?.experience_match ||
+                                      0
+                                    ) * 100
+                                  )}
+                                  %
+                                </strong>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* RECOMMENDATION */}
+                        <div className="border-t border-[#f0e2da] pt-5">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.14em] text-[#a28f86]">
+                                Recruita Recommendation
+                              </p>
+
+                              <p className="mt-1 text-sm font-semibold text-[#594b43]">
+                                {candidate.recommendation ||
+                                  "Evaluation completed"}
+                              </p>
+                            </div>
+
+                            <span
+                              className={`inline-flex self-start rounded-full px-3 py-1 text-xs font-semibold ${getPredictionClasses(
+                                predictionScore
+                              )}`}
+                            >
+                              {getPredictionLabel(
+                                predictionScore
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                }
+              )}
             </div>
           )}
         </section>

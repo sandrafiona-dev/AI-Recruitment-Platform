@@ -1,70 +1,196 @@
 """
 Salary Prediction Inference Service.
-Loads the trained salary model and provides predictions.
+
+Loads the trained salary model, predicts salary internally in USD,
+and converts the result to Indian Rupees (INR) and LPA for Recruita.
 """
+
 import os
+from typing import Any
+
 import joblib
+import pandas as pd
 
 
 class SalaryPredictor:
-    def __init__(self):
-        self.model = None
-        self.label_encoder = None
+    # Approximate conversion rate used for development/demo.
+    # 1 USD = 84 INR
+    USD_TO_INR = 84.0
+
+    def __init__(self) -> None:
+        self.model: Any = None
+        self.label_encoder: Any = None
         self.available = False
+
         self._load()
 
-    def _load(self):
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        model_path = os.path.join(base_dir, "ml", "models", "salary_predictor.pkl")
-        le_path = os.path.join(base_dir, "ml", "models", "salary_label_encoder.pkl")
+    def _load(self) -> None:
+        base_dir = os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.dirname(__file__)
+                )
+            )
+        )
 
-        if os.path.exists(model_path) and os.path.exists(le_path):
-            try:
-                self.model = joblib.load(model_path)
-                self.label_encoder = joblib.load(le_path)
-                self.available = True
-            except Exception as e:
-                print(f"Failed to load salary model: {e}")
-        else:
-            print("Salary prediction model not found. Train it first with train_salary_model.py")
+        model_path = os.path.join(
+            base_dir,
+            "ml",
+            "models",
+            "salary_predictor.pkl",
+        )
 
-    def predict(self, role: str, experience_years: int, skill_count: int) -> dict:
-        if not self.available:
+        encoder_path = os.path.join(
+            base_dir,
+            "ml",
+            "models",
+            "salary_label_encoder.pkl",
+        )
+
+        if not os.path.exists(model_path):
+            print("Salary prediction model not found.")
+            return
+
+        if not os.path.exists(encoder_path):
+            print("Salary label encoder not found.")
+            return
+
+        try:
+            self.model = joblib.load(model_path)
+            self.label_encoder = joblib.load(encoder_path)
+            self.available = True
+
+        except Exception as exc:
+            print(f"Failed to load salary model: {exc}")
+
+            self.model = None
+            self.label_encoder = None
+            self.available = False
+
+    def predict(
+        self,
+        role: str,
+        experience_years: int,
+        skill_count: int,
+    ) -> dict[str, Any]:
+
+        # --------------------------------------------------
+        # MODEL AVAILABILITY CHECK
+        # --------------------------------------------------
+
+        if (
+            not self.available
+            or self.model is None
+            or self.label_encoder is None
+        ):
             return {
                 "predicted_salary": None,
-                "currency": "USD",
-                "confidence_note": "Model not available. Train salary model first.",
-                "model_version": "unavailable"
+                "predicted_salary_lpa": None,
+                "salary_range": None,
+                "currency": "INR",
+                "salary_unit": "LPA",
+                "confidence_note": (
+                    "Model not available. "
+                    "Train salary model first."
+                ),
+                "model_version": "unavailable",
             }
 
         try:
-            # Encode role — handle unknown roles gracefully
+            # --------------------------------------------------
+            # 1. ENCODE ROLE
+            # --------------------------------------------------
+
             if role in self.label_encoder.classes_:
-                role_encoded = self.label_encoder.transform([role])[0]
+                role_encoded = int(
+                    self.label_encoder.transform([role])[0]
+                )
             else:
-                role_encoded = 0  # Default encoding for unknown roles
+                role_encoded = 0
 
-            import pandas as pd
-            features = pd.DataFrame([{
-                "role_encoded": role_encoded,
-                "experience_years": experience_years,
-                "skill_count": skill_count
-            }])
+            # --------------------------------------------------
+            # 2. PREPARE MODEL FEATURES
+            # --------------------------------------------------
 
-            prediction = self.model.predict(features)[0]
+            features = pd.DataFrame(
+                [
+                    {
+                        "role_encoded": role_encoded,
+                        "experience_years": experience_years,
+                        "skill_count": skill_count,
+                    }
+                ]
+            )
+
+            # --------------------------------------------------
+            # 3. PREDICT SALARY
+            # --------------------------------------------------
+
+            usd_salary = float(
+                self.model.predict(features)[0]
+            )
+
+            usd_salary = max(usd_salary, 0.0)
+
+            # --------------------------------------------------
+            # 4. USD → INR
+            # --------------------------------------------------
+
+            inr_salary = usd_salary * self.USD_TO_INR
+
+            # --------------------------------------------------
+            # 5. INR → LPA
+            # --------------------------------------------------
+
+            lpa = inr_salary / 100_000
+
+            # --------------------------------------------------
+            # 6. CREATE DISPLAY SALARY RANGE
+            # --------------------------------------------------
+
+            lower_lpa = max(0, int(lpa))
+            upper_lpa = lower_lpa + 1
+
+            salary_range = (
+                f"₹{lower_lpa}–{upper_lpa}LPA"
+            )
+
+            # --------------------------------------------------
+            # 7. RETURN RESULT
+            # --------------------------------------------------
 
             return {
-                "predicted_salary": round(float(prediction), 2),
-                "currency": "USD",
-                "confidence_note": "Trained on synthetic data — estimate for development/demo only",
-                "model_version": "v1.0-synthetic"
+                "predicted_salary": round(
+                    inr_salary,
+                    2,
+                ),
+                "predicted_salary_lpa": round(
+                    lpa,
+                    2,
+                ),
+                "salary_range": salary_range,
+                "currency": "INR",
+                "salary_unit": "LPA",
+                "confidence_note": (
+                    "Converted from the trained "
+                    "salary model estimate. "
+                    "Model trained on synthetic data — "
+                    "estimate for development/demo only."
+                ),
+                "model_version": "v1.0-synthetic",
             }
-        except Exception as e:
+
+        except Exception as exc:
             return {
                 "predicted_salary": None,
-                "currency": "USD",
-                "confidence_note": f"Prediction error: {str(e)}",
-                "model_version": "v1.0-synthetic"
+                "predicted_salary_lpa": None,
+                "salary_range": None,
+                "currency": "INR",
+                "salary_unit": "LPA",
+                "confidence_note": (
+                    f"Prediction error: {exc}"
+                ),
+                "model_version": "v1.0-synthetic",
             }
 
 
